@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import yaml from "yaml";
 import { defaultRuntime } from "../runtime.js";
+import { resolveBundledSkillsDir } from "../agents/skills/bundled-dir.js";
 import { theme } from "../terminal/theme.js";
 
 export interface TestCase {
@@ -89,42 +90,31 @@ function loadTestCases(skillPath: string): TestCase[] {
 
 /**
  * Run a single test case
+ *
+ * NOTE: The `actual` field is a simulated response for demo purposes.
+ * In production, this would be replaced with an actual LLM API call.
+ * The `passed` check below reflects what real LLM output should match against.
  */
 async function runTestCase(testCase: TestCase): Promise<TestResult> {
   const startTime = Date.now();
 
   // Placeholder: In a real implementation, this would call the LLM
   // For demo purposes, generate a simulated response based on keywords in the prompt
-  let actual = `This is a simulated response for: ${testCase.prompt}`;
+  const actual = `This is a simulated response for: ${testCase.prompt}`;
 
-  // For demo: check if expected keywords appear in prompt (simulating a "smart" matcher)
-  // In production, this would be actual LLM output
   const expectedKeywords = Array.isArray(testCase.expected)
     ? testCase.expected
     : [testCase.expected];
 
-  // Check if any expected keyword is mentioned in the prompt (for demo purposes)
-  // This allows tests to pass in demo mode
-  const promptLower = testCase.prompt.toLowerCase();
-  const keywordMatch = expectedKeywords.some(
-    (keyword) =>
-      promptLower.includes(keyword.toLowerCase()) ||
-      keyword.toLowerCase().includes(promptLower.split(" ")[0].toLowerCase()),
-  );
-
   const duration = Date.now() - startTime;
 
-  // Check expected values properly - array elements should be checked individually
-  const passed = expectedKeywords.every((keyword) => {
-    const expectedStr = Array.isArray(testCase.expected)
-      ? testCase.expected.join(" ")
-      : testCase.expected;
-    return (
-      actual.toLowerCase().includes(keyword.toLowerCase()) ||
-      expectedStr.toLowerCase().includes(keyword.toLowerCase()) ||
-      keywordMatch
-    ); // For demo mode
-  });
+  // Check expected values - each keyword must appear in actual output
+  // NOTE: In demo mode (simulated actual), this will always fail unless the
+  // simulated response happens to include the expected keywords.
+  // Full LLM integration will replace the `actual` computation above.
+  const passed = expectedKeywords.every((keyword) =>
+    actual.toLowerCase().includes(keyword.toLowerCase()),
+  );
 
   const expectedStr = Array.isArray(testCase.expected)
     ? testCase.expected.join(" | ")
@@ -151,10 +141,13 @@ function resolveSkillPath(workspaceDir: string, skillName: string): string | nul
     return workspacePath;
   }
 
-  // Check bundled skills (relative to where openclaw is installed)
-  const bundledPath = path.join(process.cwd(), "skills", skillName);
-  if (fs.existsSync(bundledPath)) {
-    return bundledPath;
+  // Check bundled skills using the official resolution utility
+  const bundledDir = resolveBundledSkillsDir();
+  if (bundledDir) {
+    const bundledPath = path.join(bundledDir, skillName);
+    if (fs.existsSync(bundledPath)) {
+      return bundledPath;
+    }
   }
 
   return null;
