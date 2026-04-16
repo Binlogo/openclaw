@@ -172,7 +172,7 @@ export async function runSkillTest(
   if (testCases.length === 0) {
     const message = `No test cases found for skill "${skillName}". Create a tests/ directory with YAML test files.`;
     if (opts.json) {
-      console.log(JSON.stringify({ error: message }, null, 2));
+      defaultRuntime.writeJson({ error: message }, 2);
     } else {
       defaultRuntime.log(theme.warn(message));
     }
@@ -185,7 +185,7 @@ export async function runSkillTest(
     const result = await runTestCase(testCase);
     results.push(result);
 
-    if (opts.verbose || !opts.json) {
+    if (!opts.json) {
       const status = result.passed ? theme.success("✓ PASS") : theme.error("✗ FAIL");
       defaultRuntime.log(`${status} - ${result.name}`);
       if (opts.verbose) {
@@ -200,20 +200,14 @@ export async function runSkillTest(
   const failed = results.length - passed;
 
   if (opts.json) {
-    console.log(
-      JSON.stringify(
-        {
-          skill: skillName,
-          totalTests: results.length,
-          passed,
-          failed,
-          passRate: `${((passed / results.length) * 100).toFixed(1)}%`,
-          results,
-        },
-        null,
-        2,
-      ),
-    );
+    defaultRuntime.writeJson({
+      skill: skillName,
+      totalTests: results.length,
+      passed,
+      failed,
+      passRate: `${((passed / results.length) * 100).toFixed(1)}%`,
+      results,
+    });
   } else {
     defaultRuntime.log("");
     defaultRuntime.log(
@@ -241,7 +235,7 @@ export async function runSkillBench(
   if (testCases.length === 0) {
     const message = `No test cases found for skill "${skillName}". Create a tests/ directory with YAML test files.`;
     if (opts.json) {
-      console.log(JSON.stringify({ error: message }, null, 2));
+      defaultRuntime.writeJson({ error: message }, 2);
     } else {
       defaultRuntime.log(theme.warn(message));
     }
@@ -286,7 +280,7 @@ export async function runSkillBench(
   };
 
   if (opts.json) {
-    console.log(JSON.stringify(benchmarkResult, null, 2));
+    defaultRuntime.writeJson(benchmarkResult, 2);
   } else {
     defaultRuntime.log(theme.heading(`Benchmark Results for "${skillName}"`));
     defaultRuntime.log("");
@@ -332,7 +326,7 @@ export async function analyzeSkillTrigger(
 
   // Extract description from frontmatter using yaml parser (handles multiline block scalars)
   let description = "No description found";
-  const frontmatterMatch = skillContent.match(/^---\n([\s\S]*?)\n---/);
+  const frontmatterMatch = skillContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (frontmatterMatch) {
     try {
       const fm = yaml.parse(frontmatterMatch[1]);
@@ -351,7 +345,7 @@ export async function analyzeSkillTrigger(
   if (samplePrompts.length === 0) {
     const message = `No sample prompts found. Add test cases to generate trigger analysis.`;
     if (opts.json) {
-      console.log(JSON.stringify({ error: message }, null, 2));
+      defaultRuntime.writeJson({ error: message }, 2);
     } else {
       defaultRuntime.log(theme.warn(message));
     }
@@ -418,7 +412,7 @@ export async function analyzeSkillTrigger(
   };
 
   if (opts.json) {
-    console.log(JSON.stringify(triggerAnalysis, null, 2));
+    defaultRuntime.writeJson(triggerAnalysis, 2);
   } else {
     defaultRuntime.log(theme.heading(`Trigger Analysis for "${skillName}"`));
     defaultRuntime.log("");
