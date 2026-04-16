@@ -59,6 +59,16 @@ interface TestOptions {
 /**
  * Load test cases from a skill's tests/ directory
  */
+function isValidTestCase(obj: unknown, file: string): obj is TestCase {
+  if (typeof obj !== "object" || obj === null) return false;
+  const tc = obj as Record<string, unknown>;
+  return (
+    typeof tc.name === "string" &&
+    typeof tc.prompt === "string" &&
+    (typeof tc.expected === "string" || Array.isArray(tc.expected))
+  );
+}
+
 function loadTestCases(skillPath: string): TestCase[] {
   const testsDir = path.join(skillPath, "tests");
   if (!fs.existsSync(testsDir)) {
@@ -72,16 +82,25 @@ function loadTestCases(skillPath: string): TestCase[] {
 
   for (const file of testFiles) {
     const filePath = path.join(testsDir, file);
+    const content = fs.readFileSync(filePath, "utf-8");
+    let parsed: unknown;
     try {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const parsed = yaml.parse(content);
-      if (Array.isArray(parsed)) {
-        testCases.push(...parsed);
-      } else if (parsed) {
-        testCases.push(parsed as TestCase);
-      }
+      parsed = yaml.parse(content);
     } catch (err) {
-      defaultRuntime.log(theme.warn(`Failed to load test file ${file}: ${String(err)}`));
+      throw new Error(`Malformed YAML in ${file}: ${String(err)}`);
+    }
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        if (!isValidTestCase(item, file)) {
+          throw new Error(`Invalid test case schema in ${file}: each case must have name (string), prompt (string), and expected (string or string[])`);
+        }
+        testCases.push(item as TestCase);
+      }
+    } else if (parsed) {
+      if (!isValidTestCase(parsed, file)) {
+        throw new Error(`Invalid test case schema in ${file}: must have name (string), prompt (string), and expected (string or string[])`);
+      }
+      testCases.push(parsed as TestCase);
     }
   }
 
@@ -134,7 +153,22 @@ async function runTestCase(testCase: TestCase): Promise<TestResult> {
 /**
  * Resolve skill path - checks workspace first, then bundled skills
  */
+function isSafeSkillName(skillName: string): boolean {
+  // Reject any path traversal or absolute path attempts
+  return (
+    !skillName.includes("..") &&
+    !skillName.includes("/") &&
+    !skillName.includes("\\") &&
+    skillName.trim() === skillName
+  );
+}
+
 function resolveSkillPath(workspaceDir: string, skillName: string): string | null {
+  // Reject unsafe skill names to prevent path traversal
+  if (!isSafeSkillName(skillName)) {
+    return null;
+  }
+
   // Check workspace skills
   const workspacePath = path.join(workspaceDir, "skills", skillName);
   if (fs.existsSync(workspacePath)) {
