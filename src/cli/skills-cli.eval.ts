@@ -59,8 +59,10 @@ interface TestOptions {
 /**
  * Load test cases from a skill's tests/ directory
  */
-function isValidTestCase(obj: unknown, file: string): obj is TestCase {
-  if (typeof obj !== "object" || obj === null) return false;
+function isValidTestCase(obj: unknown, _file: string): obj is TestCase {
+  if (typeof obj !== "object" || obj === null) {
+    return false;
+  }
   const tc = obj as Record<string, unknown>;
   return (
     typeof tc.name === "string" &&
@@ -87,20 +89,20 @@ function loadTestCases(skillPath: string): TestCase[] {
     try {
       parsed = yaml.parse(content);
     } catch (err) {
-      throw new Error(`Malformed YAML in ${file}: ${String(err)}`);
+      throw new Error(`Malformed YAML in ${file}: ${String(err)}`, { cause: err });
     }
     if (Array.isArray(parsed)) {
       for (const item of parsed) {
         if (!isValidTestCase(item, file)) {
           throw new Error(`Invalid test case schema in ${file}: each case must have name (string), prompt (string), and expected (string or string[])`);
         }
-        testCases.push(item as TestCase);
+        testCases.push(item);
       }
     } else if (parsed) {
       if (!isValidTestCase(parsed, file)) {
         throw new Error(`Invalid test case schema in ${file}: must have name (string), prompt (string), and expected (string or string[])`);
       }
-      testCases.push(parsed as TestCase);
+      testCases.push(parsed);
     }
   }
 
@@ -368,7 +370,9 @@ export async function analyzeSkillTrigger(
     } catch {
       // Fall back to regex for malformed frontmatter
       const descMatch = skillContent.match(/description:\s*(.+)/);
-      if (descMatch) description = descMatch[1].trim();
+      if (descMatch) {
+        description = descMatch[1].trim();
+      }
     }
  }
 
