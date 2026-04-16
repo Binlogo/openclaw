@@ -98,7 +98,7 @@ function loadTestCases(skillPath: string): TestCase[] {
         }
         testCases.push(item);
       }
-    } else if (parsed) {
+    } else if (parsed !== undefined && parsed !== null) {
       if (!isValidTestCase(parsed, file)) {
         throw new Error(`Invalid test case schema in ${file}: must have name (string), prompt (string), and expected (string or string[])`);
       }
@@ -366,7 +366,9 @@ export async function analyzeSkillTrigger(
   if (frontmatterMatch) {
     try {
       const fm = yaml.parse(frontmatterMatch[1]);
-      description = fm.description || "No description found";
+      if (fm && typeof fm === "object" && !Array.isArray(fm)) {
+        description = fm.description || "No description found";
+      }
     } catch {
       // Fall back to regex for malformed frontmatter
       const descMatch = skillContent.match(/description:\s*(.+)/);
