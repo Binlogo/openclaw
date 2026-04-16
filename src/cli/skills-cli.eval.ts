@@ -330,9 +330,19 @@ export async function analyzeSkillTrigger(
 
   const skillContent = fs.readFileSync(skillMdPath, "utf-8");
 
-  // Extract description from frontmatter
-  const descriptionMatch = skillContent.match(/description:\s*(.+)/);
-  const description = descriptionMatch ? descriptionMatch[1].trim() : "No description found";
+  // Extract description from frontmatter using yaml parser (handles multiline block scalars)
+  let description = "No description found";
+  const frontmatterMatch = skillContent.match(/^---\n([\s\S]*?)\n---/);
+  if (frontmatterMatch) {
+    try {
+      const fm = yaml.parse(frontmatterMatch[1]);
+      description = fm.description || "No description found";
+    } catch {
+      // Fall back to regex for malformed frontmatter
+      const descMatch = skillContent.match(/description:\s*(.+)/);
+      if (descMatch) description = descMatch[1].trim();
+    }
+ }
 
   // Load sample prompts from test cases
   const testCases = loadTestCases(skillPath);
@@ -348,14 +358,17 @@ export async function analyzeSkillTrigger(
     return;
   }
 
-  // Simple keyword-based relevance scoring (placeholder)
-  // In production, this would use embeddings or LLM-based analysis
+// Simple keyword-based relevance scoring (placeholder)
+// In production, this would use embeddings or LLM-based analysis
+  const descWords = description.toLowerCase().split(/\s+/);
+  const scoringWords = descWords.filter((w) => w.length > 3);
   const analysis = {
     relevanceScores: samplePrompts.map((prompt) => {
-      const descWords = description.toLowerCase().split(/\s+/);
       const promptWords = prompt.toLowerCase().split(/\s+/);
-      const matches = descWords.filter((w) => w.length > 3 && promptWords.includes(w)).length;
-      return Math.min(100, Math.round((matches / descWords.length) * 100));
+      const matches = scoringWords.filter((w) => promptWords.includes(w)).length;
+      return scoringWords.length === 0
+        ? 0
+        : Math.min(100, Math.round((matches / scoringWords.length) * 100));
     }),
     falsePositives: [] as string[],
     falseNegatives: [] as string[],
@@ -375,12 +388,18 @@ export async function analyzeSkillTrigger(
     analysis.suggestions.push("The description may be too generic. Add domain-specific terms.");
   }
 
-  // Check for false positives (prompts that might trigger incorrectly)
-  const commonWords = ["help", "can you", "please", "what is", "how to"];
+  // Note: false positive detection requires a separate corpus of non-triggering prompts.
+// samplePrompts from the skill's own test cases are all intended triggers by definition.
+// The check below flags prompts with very generic phrasing that could match many skills —
+// this indicates the skill description may need more specific trigger keywords.
+  const genericPhrases = ["help", "can you", "please", "what is", "how to"];
   for (const prompt of samplePrompts) {
-    const hasCommon = commonWords.some((w) => prompt.toLowerCase().includes(w));
-    if (hasCommon && avgScore < 60) {
-      analysis.falsePositives.push(prompt.slice(0, 50) + "...");
+    const hasGeneric = genericPhrases.some((w) => prompt.toLowerCase().includes(w));
+    if (hasGeneric && avgScore < 60) {
+      analysis.suggestions.push(
+        "Some test prompts use generic phrasing (e.g. 'help me'). Consider adding more specific trigger keywords to distinguish from general-purpose skills."
+      );
+      break;
     }
   }
 
