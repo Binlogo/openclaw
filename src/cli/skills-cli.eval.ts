@@ -119,6 +119,10 @@ function loadTestCases(skillPath: string): TestCase[] {
 async function runTestCase(testCase: TestCase): Promise<TestResult> {
   const startTime = Date.now();
 
+  if (testCase.context && Object.keys(testCase.context).length > 0) {
+    defaultRuntime.log(theme.warn(`Test "${testCase.name}": context field is not yet applied (LLM integration pending)`));
+  }
+
   // Placeholder: In a real implementation, this would call the LLM
   // For demo purposes, generate a simulated response based on keywords in the prompt
   const actual = `This is a simulated response for: ${testCase.prompt}`;
